@@ -1,6 +1,6 @@
-# Moms Mate (mommey)
+# Mommey
 
-Moms Mate is an AI-powered personal assistant designed to help manage family life by orchestrating Notion (notes/journaling) and Google (calendar/reminders) via the Model Context Protocol (MCP).
+Mommey is an AI-powered personal assistant designed to help manage family life by orchestrating Notion (notes/journaling) and Google (calendar/reminders) via the Model Context Protocol (MCP).
 
 ## Project Structure
 

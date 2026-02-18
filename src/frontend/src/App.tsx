@@ -14,10 +14,10 @@ function App() {
             Development Harness
           </div>
           <h1 className="text-5xl font-extrabold text-slate-900 mb-6 tracking-tight">
-            Moms Mate <span className="text-blue-600">Widget Test</span>
+            Mommey <span className="text-blue-600">Widget Test</span>
           </h1>
           <p className="text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-            This page simulates a live website where the Moms Mate widget is embedded. 
+            This page simulates a live website where the Mommey widget is embedded. 
             Use the chat bubble below to start interacting with the AI.
           </p>
         </header>
@@ -32,7 +32,7 @@ function App() {
               <code className="text-sm text-blue-300">
                 &lt;script src="cdn.mommey.com/widget.js"&gt;&lt;/script&gt;<br/>
                 &lt;script&gt;<br/>
-                &nbsp;&nbsp;MomsMate.init(&#123; target: '#chat' &#125;);<br/>
+                &nbsp;&nbsp;Mommey.init(&#123; target: '#chat' &#125;);<br/>
                 &lt;/script&gt;
               </code>
             </div>

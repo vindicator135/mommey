@@ -13,7 +13,7 @@ export const ChatWidget: React.FC = () => {
     {
       id: '1',
       role: 'assistant',
-      content: 'Hello! I am your Moms Mate. How can I help you today?',
+      content: 'Hello! I am Mommey. How can I help you today?',
       timestamp: new Date(),
     },
   ]);
@@ -85,7 +85,7 @@ export const ChatWidget: React.FC = () => {
               <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
                 <span className="text-lg">🤖</span>
               </div>
-              <h3 className="font-bold text-lg tracking-tight">Moms Mate</h3>
+              <h3 className="font-bold text-lg tracking-tight">Mommey</h3>
             </div>
             <button 
               onClick={() => setIsOpen(false)}
@@ -128,7 +128,7 @@ export const ChatWidget: React.FC = () => {
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Message Moms Mate..."
+                placeholder="Message Mommey..."
                 className="w-full pl-4 pr-12 py-3 bg-gray-100 border-none rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-sm"
               />
               <button
