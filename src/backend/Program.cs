@@ -3,6 +3,7 @@ using Microsoft.Extensions.AI;
 using OpenAI;
 using OpenAI.Chat;
 using Mommey.Backend.Ai;
+using Mommey.Backend.Mcp;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,6 +31,7 @@ else
     builder.Services.AddChatClient(new Samples.FakeChatClient());
 }
 
+builder.Services.AddSingleton<IMcpClient, McpClient>();
 builder.Services.AddSingleton<IIntentOrchestrator, OpenAiOrchestrator>();
 builder.Services.AddOpenApi();
 

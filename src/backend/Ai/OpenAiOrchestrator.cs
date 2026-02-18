@@ -1,4 +1,5 @@
 using Microsoft.Extensions.AI;
+using Mommey.Backend.Mcp;
 using System.Text.Json;
 
 namespace Mommey.Backend.Ai;
@@ -6,11 +7,13 @@ namespace Mommey.Backend.Ai;
 public class OpenAiOrchestrator : IIntentOrchestrator
 {
     private readonly IChatClient _chatClient;
+    private readonly IMcpClient _mcpClient;
     private readonly ILogger<OpenAiOrchestrator> _logger;
 
-    public OpenAiOrchestrator(IChatClient chatClient, ILogger<OpenAiOrchestrator> logger)
+    public OpenAiOrchestrator(IChatClient chatClient, IMcpClient mcpClient, ILogger<OpenAiOrchestrator> logger)
     {
         _chatClient = chatClient;
+        _mcpClient = mcpClient;
         _logger = logger;
     }
 
@@ -22,8 +25,8 @@ public class OpenAiOrchestrator : IIntentOrchestrator
             You are the intent classifier for 'Mommey', an AI assistant.
             Categorize the user's message into one of three intents:
             - 'Calendar': For tasks related to Google Calendar, meetings, reminders, appointments, or scheduling.
-            - 'Journal': For tasks related to Notion, note-taking, journaling, trading logs, or writing down thoughts.
-            - 'General': For anything else
+            - 'Journal': For tasks related to Notion, note-taking, journaling, or writing down thoughts.
+            - 'General': For anything else.
 
             Respond ONLY with a JSON object in the following format:
             {
@@ -43,7 +46,6 @@ public class OpenAiOrchestrator : IIntentOrchestrator
 
         try 
         {
-            // Simple parsing for now, can be improved with structured output
             var jsonStart = content.IndexOf('{');
             var jsonEnd = content.LastIndexOf('}');
             if (jsonStart >= 0 && jsonEnd >= 0)
@@ -59,14 +61,52 @@ public class OpenAiOrchestrator : IIntentOrchestrator
                     _ => UserIntent.General
                 };
 
-                return new OrchestrationResult(intent, $"Intent identified as {intent}. Reasoning: {doc.RootElement.GetProperty("reasoning").GetString()}");
+                _logger.LogInformation("Intent identified: {Intent}", intent);
+
+                if (intent == UserIntent.Calendar || intent == UserIntent.Journal)
+                {
+                    return await HandleMcpIntentAsync(intent, userMessage);
+                }
+
+                return new OrchestrationResult(intent, content); // Fallback to raw LLM response or general message
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to parse intent from LLM response");
+            _logger.LogError(ex, "Failed to parse intent or handle MCP call");
         }
 
-        return new OrchestrationResult(UserIntent.General, "Could not determine specific intent, defaulting to General.");
+        return new OrchestrationResult(UserIntent.General, "I'm here to help, but I'm not sure how to handle that specific request yet.");
+    }
+
+    private async Task<OrchestrationResult> HandleMcpIntentAsync(UserIntent intent, string userMessage)
+    {
+        string serverName = intent == UserIntent.Calendar ? "Google" : "Notion";
+        _logger.LogInformation("Handling MCP intent for {ServerName}", serverName);
+
+        // 1. List tools for the server
+        var tools = await _mcpClient.ListToolsAsync(serverName);
+        var aiTools = tools.Select(t => (AIFunction)t).ToList();
+
+        // 2. Wrap client with tool invocation support
+        // Note: Using Microsoft.Extensions.AI's FunctionInvokingChatClient or similar
+        // For simplicity, we can just pass tools to GetResponseAsync if the client supports it.
+        // We'll use the builder to make sure tool calling works.
+        
+        var toolCallingClient = _chatClient.AsBuilder().UseFunctionInvocation().Build();
+
+        var mcpSystemPrompt = $"""
+            You are assisting the user with their {serverName} account.
+            Use the provided tools to fulfill the user's request.
+            If you need more information, ask the user.
+            """;
+
+        var response = await toolCallingClient.GetResponseAsync(new List<ChatMessage>
+        {
+            new ChatMessage(ChatRole.System, mcpSystemPrompt),
+            new ChatMessage(ChatRole.User, userMessage)
+        }, new ChatOptions { Tools = aiTools.Cast<AITool>().ToList() });
+
+        return new OrchestrationResult(intent, response.ToString());
     }
 }
