@@ -47,15 +47,20 @@ export const ChatWidget: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // For now, this is a simulated response. 
-      // Later we will connect this to the C# BFF at /api/chat
-      
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: input })
+      });
+
+      if (!response.ok) throw new Error('API call failed');
+
+      const data = await response.json();
       
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `I received: "${userMessage.content}". backend integration via MCP starting soon!`,
+        content: data.response,
         timestamp: new Date(),
       };
       
