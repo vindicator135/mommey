@@ -35,18 +35,32 @@ public class McpClient : IMcpClient, IAsyncDisposable
         var section = _configuration.GetSection($"Mcp:{serverName}");
         var command = section["Command"];
         var args = section.GetSection("Arguments").Get<string[]>();
+        var envVars = section.GetSection("Env").Get<Dictionary<string, string>>();
 
         if (string.IsNullOrEmpty(command))
         {
             throw new InvalidOperationException($"MCP server configuration for {serverName} not found.");
         }
 
-        var transport = new StdioClientTransport(new StdioClientTransportOptions
+        var transportOptions = new StdioClientTransportOptions
         {
             Name = serverName,
             Command = command,
             Arguments = args ?? []
-        });
+        };
+
+        if (envVars != null)
+        {
+            foreach (var kvp in envVars)
+            {
+                if (transportOptions.EnvironmentVariables != null)
+                {
+                    transportOptions.EnvironmentVariables[kvp.Key] = kvp.Value;
+                }
+            }
+        }
+
+        var transport = new StdioClientTransport(transportOptions);
 
         var newClient = await ModelContextProtocol.Client.McpClient.CreateAsync(transport);
         _clients[serverName] = newClient;
