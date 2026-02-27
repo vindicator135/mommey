@@ -99,6 +99,7 @@ public class McpClient : IMcpClient, IAsyncDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error listing tools for {ServerName}", serverName);
+            System.IO.File.AppendAllText("/tmp/mcp-errors.log", $"[{DateTime.Now}] Error listing tools for {serverName}: {ex}\n");
             return Enumerable.Empty<AIFunction>();
         }
     }

@@ -87,6 +87,7 @@ public class OpenAiOrchestrator : IIntentOrchestrator
         // 1. List tools for the server
         var tools = await _mcpClient.ListToolsAsync(serverName);
         var aiTools = tools.Select(t => (AIFunction)t).ToList();
+        _logger.LogInformation("Found {Count} tools for server {ServerName}", aiTools.Count, serverName);
 
         // 2. Wrap client with tool invocation support
         // Note: Using Microsoft.Extensions.AI's FunctionInvokingChatClient or similar

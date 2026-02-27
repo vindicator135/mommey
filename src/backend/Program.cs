@@ -55,6 +55,12 @@ app.MapPost("/api/chat", async (ChatMessageRequest request, IIntentOrchestrator 
 })
 .WithName("PostChat");
 
+app.MapGet("/api/debug/mcp/{serverName}", async (string serverName, IMcpClient mcpClient) =>
+{
+    var tools = await mcpClient.ListToolsAsync(serverName);
+    return Results.Ok(tools);
+});
+
 app.Run();
 
 public record ChatMessageRequest(string Message);
