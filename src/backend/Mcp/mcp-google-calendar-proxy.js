@@ -22,6 +22,20 @@ const path = require('path');
 // The backend root directory is one level up from this script (Mcp/mcp-google-calendar-proxy.js)
 const backendDir = path.join(__dirname, '..');
 
+// If credentials or tokens are passed via environment variables (e.g., in Cloud Run), write them to disk
+if (process.env.GOOGLE_CREDENTIALS_JSON) {
+  const credPath = path.join(backendDir, 'credentials.json');
+  fs.writeFileSync(credPath, process.env.GOOGLE_CREDENTIALS_JSON);
+  console.error('[PROXY] Wrote credentials.json from environment variable.');
+}
+
+if (process.env.GOOGLE_TOKEN_JSON) {
+  const tokenPath = path.join(backendDir, 'mcp-google-calendar-token.json');
+  fs.writeFileSync(tokenPath, process.env.GOOGLE_TOKEN_JSON);
+  console.error('[PROXY] Wrote mcp-google-calendar-token.json from environment variable.');
+}
+
+
 const child = spawn('npx', ['-y', 'mcp-google-calendar'], {
   cwd: backendDir, // Run where the credentials.json is located
   env: process.env,

@@ -47,3 +47,6 @@ jobs:
           flags: '--allow-unauthenticated'
           env_vars: |-
             OpenAI__ApiKey=${{ secrets.OPENAI_API_KEY }}
+            Mcp__Notion__Env__NOTION_API_KEY=${{ secrets.NOTION_API_KEY }}
+            GOOGLE_CREDENTIALS_JSON=${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+            GOOGLE_TOKEN_JSON=${{ secrets.GOOGLE_TOKEN_JSON }}
