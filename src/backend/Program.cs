@@ -44,9 +44,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseSerilogRequestLogging();
+app.UseDefaultFiles();
+app.UseStaticFiles();
 app.UseHttpsRedirection();
-
-app.MapGet("/", () => "Mommey Backend is running!");
 
 app.MapPost("/api/chat", async (ChatMessageRequest request, IIntentOrchestrator orchestrator) =>
 {
@@ -60,6 +60,8 @@ app.MapGet("/api/debug/mcp/{serverName}", async (string serverName, IMcpClient m
     var tools = await mcpClient.ListToolsAsync(serverName);
     return Results.Ok(tools);
 });
+
+app.MapFallbackToFile("index.html");
 
 app.Run();
 

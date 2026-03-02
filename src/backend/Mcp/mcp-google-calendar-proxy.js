@@ -17,12 +17,20 @@
  */
 const { spawn } = require('child_process');
 const fs = require('fs');
+const path = require('path');
 
-// Spawn the actual MCP Google Calendar server process
+// The backend root directory is one level up from this script (Mcp/mcp-google-calendar-proxy.js)
+const backendDir = path.join(__dirname, '..');
+
 const child = spawn('npx', ['-y', 'mcp-google-calendar'], {
-  cwd: '/home/root-vindi/sources/mommey/src/backend', // Run where the credentials.json is located
+  cwd: backendDir, // Run where the credentials.json is located
   env: process.env,
-  stdio: ['pipe', 'pipe', 'inherit'] // Intercept stdin and stdout, let stderr pass through
+  stdio: ['pipe', 'pipe', 'pipe'] // Intercept all stdio
+});
+
+child.stderr.on('data', (chunk) => {
+  const text = chunk.toString();
+  fs.appendFileSync('/tmp/mcp-traffic.log', `[STDERR] ${text}\n`);
 });
 
 // Pass incoming JSON-RPC requests from the C# Backend to the MCP server
@@ -34,6 +42,7 @@ process.stdin.on('data', (data) => {
 // Intercept outbound JSON-RPC responses from the MCP server to the C# Backend
 let buffer = '';
 child.stdout.on('data', (chunk) => {
+  fs.appendFileSync('/tmp/mcp-traffic-raw.log', `[RAW OUT] ${chunk.toString()}`);
   fs.appendFileSync('/tmp/mcp-traffic.log', `[OUT] ${chunk.toString()}`);
   buffer += chunk.toString();
   

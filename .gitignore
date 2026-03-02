@@ -480,5 +480,8 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 
-# Vim temporary swap files
 *.swp
+
+# Secrets and Tokens
+credentials.json
+mcp-google-calendar-token.json
