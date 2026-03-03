@@ -66,4 +66,4 @@ app.MapFallbackToFile("index.html");
 
 app.Run();
 
-public record ChatMessageRequest(string Message, string SessionId);
+public record ChatMessageRequest(string Message, string? SessionId);

@@ -24,6 +24,12 @@ public class OpenAiOrchestrator : IIntentOrchestrator
 
     public async Task<OrchestrationResult> DiscernIntentAsync(string userMessage, string sessionId)
     {
+        if (string.IsNullOrEmpty(sessionId))
+        {
+            sessionId = Guid.NewGuid().ToString();
+            _logger.LogWarning("SessionId was null or empty, generated fallback session ID: {SessionId}", sessionId);
+        }
+
         _logger.LogInformation("Discerning intent for message: {Message} [Session: {SessionId}]", userMessage, sessionId);
 
         bool isNewSession = false;
