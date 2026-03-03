@@ -8,6 +8,11 @@ interface Message {
 }
 
 export const ChatWidget: React.FC = () => {
+  const [sessionId] = useState(() => 
+    typeof crypto !== 'undefined' && crypto.randomUUID 
+      ? crypto.randomUUID() 
+      : Math.random().toString(36).substring(2, 15)
+  );
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -50,7 +55,7 @@ export const ChatWidget: React.FC = () => {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: input })
+        body: JSON.stringify({ message: input, sessionId })
       });
 
       if (!response.ok) throw new Error('API call failed');

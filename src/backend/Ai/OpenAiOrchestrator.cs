@@ -1,4 +1,5 @@
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Caching.Memory;
 using Mommey.Backend.Mcp;
 using System.Text.Json;
 
@@ -8,18 +9,42 @@ public class OpenAiOrchestrator : IIntentOrchestrator
 {
     private readonly IChatClient _chatClient;
     private readonly IMcpClient _mcpClient;
+    private readonly IMemoryCache _cache;
     private readonly ILogger<OpenAiOrchestrator> _logger;
+    private readonly int _sessionTimeoutMinutes;
 
-    public OpenAiOrchestrator(IChatClient chatClient, IMcpClient mcpClient, ILogger<OpenAiOrchestrator> logger)
+    public OpenAiOrchestrator(IChatClient chatClient, IMcpClient mcpClient, IMemoryCache cache, IConfiguration configuration, ILogger<OpenAiOrchestrator> logger)
     {
         _chatClient = chatClient;
         _mcpClient = mcpClient;
+        _cache = cache;
         _logger = logger;
+        _sessionTimeoutMinutes = configuration.GetValue<int>("SessionTimeoutMinutes", 30);
     }
 
-    public async Task<OrchestrationResult> DiscernIntentAsync(string userMessage)
+    public async Task<OrchestrationResult> DiscernIntentAsync(string userMessage, string sessionId)
     {
-        _logger.LogInformation("Discerning intent for message: {Message}", userMessage);
+        _logger.LogInformation("Discerning intent for message: {Message} [Session: {SessionId}]", userMessage, sessionId);
+
+        bool isNewSession = false;
+        if (!_cache.TryGetValue(sessionId, out List<ChatMessage>? history) || history == null)
+        {
+            history = new List<ChatMessage>();
+            isNewSession = true;
+        }
+
+        // Check if history exceeds 2000 chars and summarize
+        int historyLength = history.Sum(m => m.Text?.Length ?? 0);
+        if (historyLength > 2000)
+        {
+            _logger.LogInformation("History length {Length} > 2000, summarizing...", historyLength);
+            var summarizePrompt = new ChatMessage(ChatRole.System, "Summarize this conversation briefly, focusing only on the active context and facts.");
+            var msgsToSummarize = new List<ChatMessage> { summarizePrompt };
+            msgsToSummarize.AddRange(history);
+            
+            var summaryResponse = await _chatClient.GetResponseAsync(msgsToSummarize);
+            history = new List<ChatMessage> { new ChatMessage(ChatRole.Assistant, $"Context Summary: {summaryResponse.ToString()}") };
+        }
 
         var systemPrompt = """
             You are the intent classifier for 'Mommey', an AI assistant.
@@ -35,15 +60,15 @@ public class OpenAiOrchestrator : IIntentOrchestrator
             }
             """;
 
-        var response = await _chatClient.GetResponseAsync(new List<ChatMessage>
-        {
-            new ChatMessage(ChatRole.System, systemPrompt),
-            new ChatMessage(ChatRole.User, userMessage)
-        });
+        var intentClassificationMessages = new List<ChatMessage> { new ChatMessage(ChatRole.System, systemPrompt) };
+        intentClassificationMessages.AddRange(history);
+        intentClassificationMessages.Add(new ChatMessage(ChatRole.User, userMessage));
 
+        var response = await _chatClient.GetResponseAsync(intentClassificationMessages);
         var content = response.ToString();
         _logger.LogDebug("LLM raw response: {Response}", content);
 
+        UserIntent intent = UserIntent.General;
         try 
         {
             var jsonStart = content.IndexOf('{');
@@ -54,45 +79,58 @@ public class OpenAiOrchestrator : IIntentOrchestrator
                 using var doc = JsonDocument.Parse(json);
                 var intentStr = doc.RootElement.GetProperty("intent").GetString();
 
-                var intent = intentStr switch
+                intent = intentStr switch
                 {
                     "Calendar" => UserIntent.Calendar,
                     "Journal" => UserIntent.Journal,
                     _ => UserIntent.General
                 };
-
                 _logger.LogInformation("Intent identified: {Intent}", intent);
-
-                if (intent == UserIntent.Calendar || intent == UserIntent.Journal)
-                {
-                    return await HandleMcpIntentAsync(intent, userMessage);
-                }
-
-                return new OrchestrationResult(intent, content); // Fallback to raw LLM response or general message
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to parse intent or handle MCP call");
+            _logger.LogError(ex, "Failed to parse intent");
         }
 
-        return new OrchestrationResult(UserIntent.General, "I'm here to help, but I'm not sure how to handle that specific request yet.");
+        string finalResponseText;
+        if (intent == UserIntent.Calendar || intent == UserIntent.Journal)
+        {
+            finalResponseText = await HandleMcpIntentAsync(intent, userMessage, history);
+        }
+        else
+        {
+            var generalPrompt = "You are Mommey, a helpful AI assistant. Answer the user's query.";
+            var generalMsgs = new List<ChatMessage> { new ChatMessage(ChatRole.System, generalPrompt) };
+            generalMsgs.AddRange(history);
+            generalMsgs.Add(new ChatMessage(ChatRole.User, userMessage));
+            
+            var generalResponse = await _chatClient.GetResponseAsync(generalMsgs);
+            finalResponseText = generalResponse.ToString() ?? "";
+        }
+
+        // Append to history
+        history.Add(new ChatMessage(ChatRole.User, userMessage));
+        history.Add(new ChatMessage(ChatRole.Assistant, finalResponseText));
+
+        // Save back to cache
+        _cache.Set(sessionId, history, TimeSpan.FromMinutes(_sessionTimeoutMinutes));
+
+        if (isNewSession)
+        {
+            finalResponseText = "_Note: A new session has started. Previous context was cleared._\n\n" + finalResponseText;
+        }
+
+        return new OrchestrationResult(intent, finalResponseText);
     }
 
-    private async Task<OrchestrationResult> HandleMcpIntentAsync(UserIntent intent, string userMessage)
+    private async Task<string> HandleMcpIntentAsync(UserIntent intent, string userMessage, List<ChatMessage> history)
     {
         string serverName = intent == UserIntent.Calendar ? "Google" : "Notion";
         _logger.LogInformation("Handling MCP intent for {ServerName}", serverName);
 
-        // 1. List tools for the server
         var tools = await _mcpClient.ListToolsAsync(serverName);
         var aiTools = tools.Select(t => (AIFunction)t).ToList();
-        _logger.LogInformation("Found {Count} tools for server {ServerName}", aiTools.Count, serverName);
-
-        // 2. Wrap client with tool invocation support
-        // Note: Using Microsoft.Extensions.AI's FunctionInvokingChatClient or similar
-        // For simplicity, we can just pass tools to GetResponseAsync if the client supports it.
-        // We'll use the builder to make sure tool calling works.
         
         var toolCallingClient = _chatClient.AsBuilder().UseFunctionInvocation().Build();
 
@@ -102,12 +140,12 @@ public class OpenAiOrchestrator : IIntentOrchestrator
             If you need more information, ask the user.
             """;
 
-        var response = await toolCallingClient.GetResponseAsync(new List<ChatMessage>
-        {
-            new ChatMessage(ChatRole.System, mcpSystemPrompt),
-            new ChatMessage(ChatRole.User, userMessage)
-        }, new ChatOptions { Tools = aiTools.Cast<AITool>().ToList() });
+        var msgs = new List<ChatMessage> { new ChatMessage(ChatRole.System, mcpSystemPrompt) };
+        msgs.AddRange(history);
+        msgs.Add(new ChatMessage(ChatRole.User, userMessage));
 
-        return new OrchestrationResult(intent, response.ToString());
+        var response = await toolCallingClient.GetResponseAsync(msgs, new ChatOptions { Tools = aiTools.Cast<AITool>().ToList() });
+
+        return response.ToString() ?? "";
     }
 }

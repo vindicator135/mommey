@@ -11,5 +11,5 @@ public record OrchestrationResult(UserIntent Intent, string Response);
 
 public interface IIntentOrchestrator
 {
-    Task<OrchestrationResult> DiscernIntentAsync(string userMessage);
+    Task<OrchestrationResult> DiscernIntentAsync(string userMessage, string sessionId);
 }

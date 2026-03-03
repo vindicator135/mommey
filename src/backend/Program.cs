@@ -31,6 +31,7 @@ else
     builder.Services.AddChatClient(new Samples.FakeChatClient());
 }
 
+builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<IMcpClient, McpClient>();
 builder.Services.AddSingleton<IIntentOrchestrator, OpenAiOrchestrator>();
 builder.Services.AddOpenApi();
@@ -50,7 +51,7 @@ app.UseHttpsRedirection();
 
 app.MapPost("/api/chat", async (ChatMessageRequest request, IIntentOrchestrator orchestrator) =>
 {
-    var result = await orchestrator.DiscernIntentAsync(request.Message);
+    var result = await orchestrator.DiscernIntentAsync(request.Message, request.SessionId);
     return Results.Ok(new { result.Intent, result.Response });
 })
 .WithName("PostChat");
@@ -65,4 +66,4 @@ app.MapFallbackToFile("index.html");
 
 app.Run();
 
-public record ChatMessageRequest(string Message);
+public record ChatMessageRequest(string Message, string SessionId);
